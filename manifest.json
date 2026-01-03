@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "name": "Media Playing Detector",
+    "description": "Shows which tabs are playing media",
+    "version": "1.0",
+    "permissions": [
+      "tabs",
+      "activeTab",
+      "storage"
+    ],
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": {
+        "16": "assets/play.png",
+        "48": "assets/play.png",
+        "128": "assets/play.png"
+      }
+    },
+    "background": {
+      "service_worker": "background.js"
+    }
+  }

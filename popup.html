@@ -1,0 +1,22 @@
+<!-- popup.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Playing Media Tabs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 12px; min-width: 320px; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { padding: 8px; border-bottom: 1px solid #ddd; cursor: pointer; }
+    li:hover { background: #f0f0f0; }
+    .muted { opacity: 0.6; }
+    .speaker::before { content: "🔊 "; }
+  </style>
+</head>
+<body>
+  <h3>Currently playing media:</h3>
+  <ul id="list"></ul>
+
+  <script src="popup.js"></script>
+</body>
+</html>
