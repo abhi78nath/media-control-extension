@@ -1,4 +1,11 @@
 // background.js (service worker)
+
+// Import Spotify extraction functionality
+importScripts('spotify-extractor.js');
+
+let lastPlayingTabsHash = null;
+let forceUpdate = false;
+
 function updateMediaTabs() {
     chrome.tabs.query({}, (tabs) => {
       const playingTabs = tabs
@@ -11,6 +18,31 @@ function updateMediaTabs() {
           audible: tab.audible,
           muted: tab.mutedInfo?.muted || false
         }));
+  
+      // Create a simple hash to detect actual changes
+      // Include id, muted, audible, title, and url to catch song changes
+      const currentHash = JSON.stringify(playingTabs.map(t => ({
+        id: t.id,
+        muted: t.muted,
+        audible: t.audible,
+        title: t.title,
+        url: t.url
+      })).sort((a, b) => a.id - b.id));
+
+      // Only update if something actually changed (unless forced)
+      if (!forceUpdate && currentHash === lastPlayingTabsHash && lastPlayingTabsHash !== null) {
+        return; // No changes, skip update (but allow first update)
+      }
+      
+      lastPlayingTabsHash = currentHash;
+      forceUpdate = false; // Reset force flag
+  
+      // Check for Spotify tabs and get song details
+      playingTabs.forEach(tab => {
+        if (tab.url && tab.url.includes('open.spotify.com')) {
+          getSpotifySongDetails(tab.id);
+        }
+      });
   
       // Optional: store in chrome.storage for popup to read quickly
       chrome.storage.local.set({ playingTabs });
@@ -46,6 +78,20 @@ function updateMediaTabs() {
   // Initial load + when extension is installed/enabled
   chrome.runtime.onStartup.addListener(updateMediaTabs);
   chrome.runtime.onInstalled.addListener(updateMediaTabs);
-  
-  // Optional: update every ~3–5 seconds (the audible flag has a small delay anyway)
-  setInterval(updateMediaTabs, 4000);
+
+  // Listen for Spotify details updates and trigger refresh
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') {
+      // Check if any Spotify details were updated
+      const spotifyDetailChanged = Object.keys(changes).some(key => key.startsWith('spotifyDetails_'));
+      if (spotifyDetailChanged) {
+        // Force an update when Spotify details change (ignore hash check)
+        forceUpdate = true;
+        updateMediaTabs();
+      }
+    }
+  });
+
+  // Optional: update every ~5 seconds (the audible flag has a small delay anyway)
+  // Reduced frequency since we now check for actual changes
+  setInterval(updateMediaTabs, 5000);
