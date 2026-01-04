@@ -20,8 +20,8 @@ function extractSpotifySongDetails() {
   // Try multiple selectors as Spotify's DOM structure can vary
   // Method 1: Try data-testid selectors (common in modern Spotify)
   const titleElement =
-    document.querySelector('[data-testid="entityTitle"]') ||
     document.querySelector('[data-testid="context-item-info-title"]') ||
+    // document.querySelector('[data-testid="entityTitle"]') ||
     document.querySelector('a[data-testid="context-item-link"]') ||
     document.querySelector(".now-playing-bar__left .track-info__name a") ||
     document.querySelector(".track-info__name a");
