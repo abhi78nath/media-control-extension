@@ -161,20 +161,67 @@ async function renderTabs(tabs = []) {
     const spotifyDetails = spotifyData[tab.id];
     
     if (isSpotify && spotifyDetails && spotifyDetails.title) {
-      // Create image element if available
-      let imageHtml = '';
-      if (spotifyDetails.image) {
-        imageHtml = `<img src="${spotifyDetails.image}" alt="Album cover" class="album-image" />`;
+      // Create info text container
+      const infoText = document.createElement("div");
+      infoText.className = "info-text";
+      
+      const titleEl = document.createElement("strong");
+      titleEl.textContent = spotifyDetails.title || tab.title || "Untitled";
+      infoText.appendChild(titleEl);
+      
+      infoText.appendChild(document.createElement("br"));
+      
+      const artistEl = document.createElement("small");
+      artistEl.textContent = spotifyDetails.artist || "Unknown Artist";
+      infoText.appendChild(artistEl);
+      
+      if (tab.paused) {
+        infoText.appendChild(document.createElement("br"));
+        const pausedEl = document.createElement("small");
+        pausedEl.style.cssText = "color: #888; font-style: italic;";
+        pausedEl.innerHTML = "⏸ Paused";
+        infoText.appendChild(pausedEl);
+        // If we change background, we might need to update this paused color too, 
+        // but let's leave it for now or handle inside the onload
       }
-      const pausedIndicator = tab.paused ? '<small style="color: #888; font-style: italic;">⏸ Paused</small><br>' : '';
-      info.innerHTML = `
-        ${imageHtml}
-        <div class="info-text">
-          <strong>${spotifyDetails.title || tab.title || "Untitled"}</strong><br>
-          <small>${spotifyDetails.artist || "Unknown Artist"}</small><br>
-          ${pausedIndicator}
-        </div>
-      `;
+
+      // Create image element if available
+      if (spotifyDetails.image) {
+        const img = document.createElement("img");
+        img.crossOrigin = "Anonymous";
+        img.src = spotifyDetails.image;
+        img.alt = "Album cover";
+        img.className = "album-image";
+        
+        img.onload = () => {
+          const colors = getDominantColor(img);
+          if (colors) {
+            const { r, g, b } = colors;
+            // Set background
+            li.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            li.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
+            
+            // Get appropriate text colors
+            const textColor = getContrastingTextColor(r, g, b);
+            const secondaryColor = getSecondaryTextColor(r, g, b);
+            
+            // Apply text colors
+            li.style.color = textColor;
+            titleEl.style.color = textColor;
+            artistEl.style.color = secondaryColor;
+            
+            // If there is a paused indicator, update its color to match secondary
+            const pausedIndicator = infoText.querySelector("small[style*='italic']");
+            if (pausedIndicator) {
+              pausedIndicator.style.color = secondaryColor;
+            }
+          }
+        };
+        
+        info.appendChild(img);
+      }
+      
+      info.appendChild(infoText);
     } else {
       const pausedIndicator = tab.paused ? '<br><small style="color: #888; font-style: italic;">⏸ Paused</small>' : '';
       info.innerHTML = `
