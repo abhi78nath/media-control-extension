@@ -1,4 +1,4 @@
-# Lyrics Browser Extension
+# Media Control Extension
 
 A powerful browser extension that detects media playing in **any browser tab**. It provides quick media controls, real-time progress tracking, and seamless, one-click access to song lyrics.
 
