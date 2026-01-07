@@ -120,6 +120,14 @@ function updateMediaTabs() {
     }
   });
 
+  // Handle manual update requests from popup
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.action === "request-update") {
+      forceUpdate = true;
+      updateMediaTabs();
+    }
+  });
+
   // Optional: update every ~5 seconds (the audible flag has a small delay anyway)
   // Reduced frequency since we now check for actual changes
   setInterval(updateMediaTabs, 5000);

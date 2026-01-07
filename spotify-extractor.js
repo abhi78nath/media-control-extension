@@ -14,6 +14,7 @@ function extractSpotifySongDetails() {
     album: null,
     image: null,
     duration: null,
+    currentTime: null,
     progress: null,
   };
 
@@ -38,14 +39,22 @@ function extractSpotifySongDetails() {
     document.querySelector(".now-playing-bar__left img") ||
     document.querySelector(".cover-art img");
 
+  // Try to get current time text directly
+  const currentTimeElement =
+    document.querySelector('[data-testid="playback-position"]') ||
+    document.querySelector(".playback-bar__progress-time:first-child");
+
+  const durationElement =
+    document.querySelector('[data-testid="playback-duration"]') ||
+    document.querySelector('[data-testid="duration-text"]') ||
+    document.querySelector(".playback-bar__progress-time:last-child");
+
+  // Get progress bar for percentage calculation
   const progressElement =
     document.querySelector('[data-testid="progress-bar"]') ||
     document.querySelector(".playback-bar__progress");
-
-  const durationElement =
-    document.querySelector('[data-testid="duration-text"]') ||
-    document.querySelector('[data-testid="playback-duration"]') ||
-    document.querySelector(".playback-bar__progress-time:last-child");
+  
+  const progressContainer = progressElement?.parentElement;
 
   if (titleElement) {
     songDetails.title =
@@ -61,14 +70,24 @@ function extractSpotifySongDetails() {
     songDetails.image = imageElement.src || imageElement.getAttribute("src");
   }
 
-  if (progressElement) {
-    const style = window.getComputedStyle(progressElement);
-    songDetails.progress = style.width || progressElement.style.width;
+  // Get current time directly from Spotify's display
+  if (currentTimeElement) {
+    songDetails.currentTime =
+      currentTimeElement.textContent?.trim() || currentTimeElement.innerText?.trim();
   }
 
   if (durationElement) {
     songDetails.duration =
       durationElement.textContent?.trim() || durationElement.innerText?.trim();
+  }
+
+  // Calculate progress percentage from progress bar
+  if (progressElement && progressContainer) {
+    const progressWidth = progressElement.offsetWidth;
+    const containerWidth = progressContainer.offsetWidth;
+    if (containerWidth > 0) {
+      songDetails.progress = ((progressWidth / containerWidth) * 100).toFixed(2);
+    }
   }
 
   // Also try to get from page title (fallback)

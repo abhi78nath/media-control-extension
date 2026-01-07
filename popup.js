@@ -1,7 +1,29 @@
 // popup.js
 
+// Helper function to parse time string (e.g., "3:45") to seconds
+function parseTimeToSeconds(timeStr) {
+  if (!timeStr) return 0;
+  const parts = timeStr.split(':').map(p => parseInt(p, 10));
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1]; // MM:SS
+  } else if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2]; // HH:MM:SS
+  }
+  return 0;
+}
+
+// Helper function to format seconds to time string (e.g., "3:45")
+function formatTime(seconds) {
+  if (!seconds || seconds < 0) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 // Cache for loaded lyrics to avoid reloading
 const lyricsCache = new Map();
+// Track progress intervals
+const progressIntervals = new Map();
 
 // Debounce function to prevent excessive re-renders
 let renderTimeout = null;
@@ -76,6 +98,10 @@ async function toggleLyricsPanel(panelElement, artist, title) {
 
 async function renderTabs(tabs = []) {
   const list = document.getElementById("list");
+  
+  // Clear any running progress intervals before re-rendering
+  progressIntervals.forEach(interval => clearInterval(interval));
+  progressIntervals.clear();
   
   // Save expanded panel states and loaded lyrics before clearing
   const expandedPanels = new Map();
@@ -157,6 +183,78 @@ async function renderTabs(tabs = []) {
           <small>${new URL(tab.url).hostname}</small>${pausedIndicator}
         </div>
       `;
+    }
+
+    // Create progress bar for Spotify tabs with progress data
+    let progressBar = null;
+    if (isSpotify && spotifyDetails && spotifyDetails.duration) {
+      progressBar = document.createElement("div");
+      progressBar.className = "progress-container";
+      
+      let progressPercent = 0;
+      let currentTimeDisplay = "0:00";
+      
+      // Use currentTime directly from Spotify if available
+      let currentSeconds = 0;
+      const totalSeconds = parseTimeToSeconds(spotifyDetails.duration);
+      
+      if (spotifyDetails.currentTime) {
+        currentTimeDisplay = spotifyDetails.currentTime;
+        currentSeconds = parseTimeToSeconds(spotifyDetails.currentTime);
+        if (totalSeconds > 0) {
+          progressPercent = (currentSeconds / totalSeconds) * 100;
+        }
+      } else if (spotifyDetails.progress) {
+        // Fallback: parse progress percentage
+        progressPercent = parseFloat(spotifyDetails.progress) || 0;
+        currentSeconds = Math.floor((progressPercent / 100) * totalSeconds);
+        currentTimeDisplay = formatTime(currentSeconds);
+      }
+      
+      const progressBarId = `progress-${tab.id}`;
+      progressBar.innerHTML = `
+        <div class="progress-bar-wrapper">
+          <div id="${progressBarId}-fill" class="progress-bar-fill" style="width: ${progressPercent}%"></div>
+        </div>
+        <div class="progress-times">
+          <span id="${progressBarId}-time" class="progress-time-current">${currentTimeDisplay}</span>
+          <span class="progress-time-total">${spotifyDetails.duration}</span>
+        </div>
+      `;
+
+      // Start local simulation if playing
+      if (!tab.paused && totalSeconds > 0) {
+        // Clear any existing interval for this tab just in case
+        if (progressIntervals.has(tab.id)) {
+          clearInterval(progressIntervals.get(tab.id));
+        }
+
+        const interval = setInterval(() => {
+          currentSeconds++;
+          
+          if (currentSeconds > totalSeconds) {
+            clearInterval(interval);
+            progressIntervals.delete(tab.id);
+            return;
+          }
+
+          // Update DOM directly
+          const fillEl = document.getElementById(`${progressBarId}-fill`);
+          const timeEl = document.getElementById(`${progressBarId}-time`);
+          
+          if (fillEl && timeEl) {
+            const newPercent = (currentSeconds / totalSeconds) * 100;
+            fillEl.style.width = `${newPercent}%`;
+            timeEl.textContent = formatTime(currentSeconds);
+          } else {
+            // Element no longer exists, clear interval
+            clearInterval(interval);
+            progressIntervals.delete(tab.id);
+          }
+        }, 1000);
+        
+        progressIntervals.set(tab.id, interval);
+      }
     }
 
     // Create main content row (info + buttons)
@@ -336,6 +434,12 @@ async function renderTabs(tabs = []) {
     };
 
     mainRow.appendChild(info);
+    
+    // Add progress bar if available
+    if (progressBar) {
+      mainRow.appendChild(progressBar);
+    }
+    
     mainRow.appendChild(buttonContainer);
     li.appendChild(mainRow);
     
