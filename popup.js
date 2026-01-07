@@ -194,26 +194,40 @@ async function renderTabs(tabs = []) {
         img.className = "album-image";
         
         img.onload = () => {
-          const colors = getDominantColor(img);
-          if (colors) {
-            const { r, g, b } = colors;
-            // Set background
+          // Get the most dominant color for the background
+          const dominantColors = getDominantColors(img, 1, 'desc');
+          
+          // Get the least dominant colors for the text (accents)
+          const leastColors = getDominantColors(img, 3, 'asc');
+          
+          if (dominantColors && dominantColors.length > 0) {
+            const primary = dominantColors[0];
+            const { r, g, b } = primary;
+            
+            // Set background to primary (most dominant) color
             li.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            li.style.backgroundImage = 'none';
             li.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
             
-            // Get appropriate text colors
-            const textColor = getContrastingTextColor(r, g, b);
-            const secondaryColor = getSecondaryTextColor(r, g, b);
+            // Use the new accessible color generator
+            // Try to find a readable color from the least dominant (accent) candidates
+            const finalTextColor = getReadableTextColor(primary, leastColors || []);
             
             // Apply text colors
-            li.style.color = textColor;
-            titleEl.style.color = textColor;
-            artistEl.style.color = secondaryColor;
+            li.style.color = finalTextColor;
+            titleEl.style.color = finalTextColor;
             
-            // If there is a paused indicator, update its color to match secondary
+            // For subtext, we can try to find another readable color or just use the same one with opacity
+            // For now, let's just make sure the main text is readable. 
+            // We can try to use a slightly dimmed version or the same color for consistency.
+            artistEl.style.color = finalTextColor;
+            artistEl.style.opacity = "0.9";
+            
+            // Update paused indicator
             const pausedIndicator = infoText.querySelector("small[style*='italic']");
             if (pausedIndicator) {
-              pausedIndicator.style.color = secondaryColor;
+              pausedIndicator.style.color = finalTextColor;
+              pausedIndicator.style.opacity = "0.8";
             }
           }
         };
