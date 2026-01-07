@@ -1,7 +1,29 @@
 // popup.js
 
+// Helper function to parse time string (e.g., "3:45") to seconds
+function parseTimeToSeconds(timeStr) {
+  if (!timeStr) return 0;
+  const parts = timeStr.split(':').map(p => parseInt(p, 10));
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1]; // MM:SS
+  } else if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2]; // HH:MM:SS
+  }
+  return 0;
+}
+
+// Helper function to format seconds to time string (e.g., "3:45")
+function formatTime(seconds) {
+  if (!seconds || seconds < 0) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 // Cache for loaded lyrics to avoid reloading
 const lyricsCache = new Map();
+// Track progress intervals
+const progressIntervals = new Map();
 
 // Debounce function to prevent excessive re-renders
 let renderTimeout = null;
@@ -77,6 +99,10 @@ async function toggleLyricsPanel(panelElement, artist, title) {
 async function renderTabs(tabs = []) {
   const list = document.getElementById("list");
   
+  // Clear any running progress intervals before re-rendering
+  progressIntervals.forEach(interval => clearInterval(interval));
+  progressIntervals.clear();
+  
   // Save expanded panel states and loaded lyrics before clearing
   const expandedPanels = new Map();
   const loadedLyrics = new Map();
@@ -118,7 +144,14 @@ async function renderTabs(tabs = []) {
 
   tabs.forEach((tab) => {
     const li = document.createElement("li");
-    li.className = tab.muted ? "muted" : "playing";
+    // Set class based on state: paused > muted > playing
+    if (tab.paused) {
+      li.className = "paused";
+    } else if (tab.muted) {
+      li.className = "muted";
+    } else {
+      li.className = "playing";
+    }
     li.title = tab.url;
 
     // Title + hostname + image
@@ -128,25 +161,161 @@ async function renderTabs(tabs = []) {
     const spotifyDetails = spotifyData[tab.id];
     
     if (isSpotify && spotifyDetails && spotifyDetails.title) {
-      // Create image element if available
-      let imageHtml = '';
-      if (spotifyDetails.image) {
-        imageHtml = `<img src="${spotifyDetails.image}" alt="Album cover" class="album-image" />`;
+      // Create info text container
+      const infoText = document.createElement("div");
+      infoText.className = "info-text";
+      
+      const titleEl = document.createElement("strong");
+      titleEl.textContent = spotifyDetails.title || tab.title || "Untitled";
+      infoText.appendChild(titleEl);
+      
+      infoText.appendChild(document.createElement("br"));
+      
+      const artistEl = document.createElement("small");
+      artistEl.textContent = spotifyDetails.artist || "Unknown Artist";
+      infoText.appendChild(artistEl);
+      
+      if (tab.paused) {
+        infoText.appendChild(document.createElement("br"));
+        const pausedEl = document.createElement("small");
+        pausedEl.style.cssText = "color: #888; font-style: italic;";
+        pausedEl.innerHTML = "⏸ Paused";
+        infoText.appendChild(pausedEl);
+        // If we change background, we might need to update this paused color too, 
+        // but let's leave it for now or handle inside the onload
       }
-      info.innerHTML = `
-        ${imageHtml}
-        <div class="info-text">
-          <strong>${spotifyDetails.title || tab.title || "Untitled"}</strong><br>
-          <small>${spotifyDetails.artist || "Unknown Artist"}</small>
-        </div>
-      `;
+
+      // Create image element if available
+      if (spotifyDetails.image) {
+        const img = document.createElement("img");
+        img.crossOrigin = "Anonymous";
+        img.src = spotifyDetails.image;
+        img.alt = "Album cover";
+        img.className = "album-image";
+        
+        img.onload = () => {
+          // Get the most dominant color for the background
+          const dominantColors = getDominantColors(img, 1, 'desc');
+          
+          // Get the least dominant colors for the text (accents)
+          const leastColors = getDominantColors(img, 3, 'asc');
+          
+          if (dominantColors && dominantColors.length > 0) {
+            const primary = dominantColors[0];
+            const { r, g, b } = primary;
+            
+            // Set background to primary (most dominant) color
+            li.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            li.style.backgroundImage = 'none';
+            li.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
+            
+            // Use the new accessible color generator
+            // Try to find a readable color from the least dominant (accent) candidates
+            const finalTextColor = getReadableTextColor(primary, leastColors || []);
+            
+            // Apply text colors
+            li.style.color = finalTextColor;
+            titleEl.style.color = finalTextColor;
+            
+            // For subtext, we can try to find another readable color or just use the same one with opacity
+            // For now, let's just make sure the main text is readable. 
+            // We can try to use a slightly dimmed version or the same color for consistency.
+            artistEl.style.color = finalTextColor;
+            artistEl.style.opacity = "0.9";
+            
+            // Update paused indicator
+            const pausedIndicator = infoText.querySelector("small[style*='italic']");
+            if (pausedIndicator) {
+              pausedIndicator.style.color = finalTextColor;
+              pausedIndicator.style.opacity = "0.8";
+            }
+          }
+        };
+        
+        info.appendChild(img);
+      }
+      
+      info.appendChild(infoText);
     } else {
+      const pausedIndicator = tab.paused ? '<br><small style="color: #888; font-style: italic;">⏸ Paused</small>' : '';
       info.innerHTML = `
         <div class="info-text">
           <strong>${tab.title || "Untitled"}</strong><br>
-          <small>${new URL(tab.url).hostname}</small>
+          <small>${new URL(tab.url).hostname}</small>${pausedIndicator}
         </div>
       `;
+    }
+
+    // Create progress bar for Spotify tabs with progress data
+    let progressBar = null;
+    if (isSpotify && spotifyDetails && spotifyDetails.duration) {
+      progressBar = document.createElement("div");
+      progressBar.className = "progress-container";
+      
+      let progressPercent = 0;
+      let currentTimeDisplay = "0:00";
+      
+      // Use currentTime directly from Spotify if available
+      let currentSeconds = 0;
+      const totalSeconds = parseTimeToSeconds(spotifyDetails.duration);
+      
+      if (spotifyDetails.currentTime) {
+        currentTimeDisplay = spotifyDetails.currentTime;
+        currentSeconds = parseTimeToSeconds(spotifyDetails.currentTime);
+        if (totalSeconds > 0) {
+          progressPercent = (currentSeconds / totalSeconds) * 100;
+        }
+      } else if (spotifyDetails.progress) {
+        // Fallback: parse progress percentage
+        progressPercent = parseFloat(spotifyDetails.progress) || 0;
+        currentSeconds = Math.floor((progressPercent / 100) * totalSeconds);
+        currentTimeDisplay = formatTime(currentSeconds);
+      }
+      
+      const progressBarId = `progress-${tab.id}`;
+      progressBar.innerHTML = `
+        <div class="progress-bar-wrapper">
+          <div id="${progressBarId}-fill" class="progress-bar-fill" style="width: ${progressPercent}%"></div>
+        </div>
+        <div class="progress-times">
+          <span id="${progressBarId}-time" class="progress-time-current">${currentTimeDisplay}</span>
+          <span class="progress-time-total">${spotifyDetails.duration}</span>
+        </div>
+      `;
+
+      // Start local simulation if playing
+      if (!tab.paused && totalSeconds > 0) {
+        // Clear any existing interval for this tab just in case
+        if (progressIntervals.has(tab.id)) {
+          clearInterval(progressIntervals.get(tab.id));
+        }
+
+        const interval = setInterval(() => {
+          currentSeconds++;
+          
+          if (currentSeconds > totalSeconds) {
+            clearInterval(interval);
+            progressIntervals.delete(tab.id);
+            return;
+          }
+
+          // Update DOM directly
+          const fillEl = document.getElementById(`${progressBarId}-fill`);
+          const timeEl = document.getElementById(`${progressBarId}-time`);
+          
+          if (fillEl && timeEl) {
+            const newPercent = (currentSeconds / totalSeconds) * 100;
+            fillEl.style.width = `${newPercent}%`;
+            timeEl.textContent = formatTime(currentSeconds);
+          } else {
+            // Element no longer exists, clear interval
+            clearInterval(interval);
+            progressIntervals.delete(tab.id);
+          }
+        }, 1000);
+        
+        progressIntervals.set(tab.id, interval);
+      }
     }
 
     // Create main content row (info + buttons)
@@ -265,6 +434,58 @@ async function renderTabs(tabs = []) {
       }
     };
 
+    // Play/Pause button
+    const playPauseBtn = document.createElement("button");
+    // Determine initial label based on paused state
+    const isPaused = tab.paused || !tab.audible;
+    playPauseBtn.textContent = isPaused ? "Play ▶️" : "Pause ⏸️";
+    playPauseBtn.className = "play-pause-btn";
+    playPauseBtn.title = isPaused ? "Resume playback" : "Pause playback";
+
+    playPauseBtn.onclick = async (e) => {
+      e.stopPropagation();
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            // 1. Try Spotify specific controls first
+            const spotifyBtn = document.querySelector('[data-testid="control-button-playpause"]');
+            if (spotifyBtn) {
+              spotifyBtn.click();
+              return true;
+            }
+
+            // 2. Fallback to generic media elements
+            const media = document.querySelectorAll('video, audio');
+            let played = false;
+            for (const m of media) {
+              if (!m.paused) {
+                m.pause();
+              } else {
+                m.play();
+                played = true;
+              }
+            }
+            return played;
+          }
+        });
+        
+        // Optimistically update button text
+        const currentText = playPauseBtn.textContent;
+        if (currentText.includes("Play")) {
+             playPauseBtn.textContent = "Pause ⏸️";
+             playPauseBtn.title = "Pause playback";
+        } else {
+             playPauseBtn.textContent = "Play ▶️";
+             playPauseBtn.title = "Resume playback";
+        }
+
+      } catch (err) {
+        console.error("Failed to toggle play/pause:", err);
+      }
+    };
+    
+    buttonContainer.appendChild(playPauseBtn);
     buttonContainer.appendChild(muteBtn);
 
     // Click anywhere else on the row → focus the tab
@@ -274,6 +495,12 @@ async function renderTabs(tabs = []) {
     };
 
     mainRow.appendChild(info);
+    
+    // Add progress bar if available
+    if (progressBar) {
+      mainRow.appendChild(progressBar);
+    }
+    
     mainRow.appendChild(buttonContainer);
     li.appendChild(mainRow);
     
