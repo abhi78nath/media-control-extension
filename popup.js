@@ -254,11 +254,34 @@ async function renderTabs(tabs = []) {
               btn.style.color = finalTextColor;
             });
 
+            // Update lyrics button color
+            const lyricsBtnEl = li.querySelector('.lyrics-btn');
+            if (lyricsBtnEl) {
+              lyricsBtnEl.style.color = finalTextColor;
+              // Also ensure it's not using the default gradient if we want semi-transparent
+              // lyricsBtnEl.style.background = 'rgba(255, 255, 255, 0.15)';
+              lyricsBtnEl.style.backdropFilter = 'blur(4px)';
+              lyricsBtnEl.style.border = `1px solid rgba(${r}, ${g}, ${b}, 0.2)`;
+            }
+
             // Update progress time colors to match readable text color
             const progressTimeCurrent = li.querySelector('.progress-time-current');
             const progressTimeTotal = li.querySelector('.progress-time-total');
             if (progressTimeCurrent) progressTimeCurrent.style.color = finalTextColor;
             if (progressTimeTotal) progressTimeTotal.style.color = finalTextColor;
+
+            // Update progress bar fill color
+            const progressBarFill = li.querySelector('.progress-bar-fill');
+            if (progressBarFill) {
+              progressBarFill.style.background = finalTextColor;
+              progressBarFill.style.opacity = "0.9";
+            }
+
+            // Update separator color
+            const separator = li.querySelector('.control-separator');
+            if (separator) {
+              separator.style.background = finalTextColor;
+            }
           }
         };
         
@@ -355,9 +378,13 @@ async function renderTabs(tabs = []) {
     let lyricsBtn = null;
     if (isSpotify && spotifyDetails && spotifyDetails.title && spotifyDetails.artist) {
       lyricsBtn = document.createElement("button");
-      lyricsBtn.textContent = "🎵 Lyrics";
       lyricsBtn.className = "lyrics-btn";
       lyricsBtn.title = "Toggle lyrics for this song";
+
+      const lyricsIcon = document.createElement("div");
+      lyricsIcon.className = "lyrics-icon";
+
+      lyricsBtn.appendChild(lyricsIcon);
       
       // Create lyrics panel
       lyricsPanel = document.createElement("div");
@@ -424,13 +451,7 @@ async function renderTabs(tabs = []) {
       lyricsBtn.onclick = async (e) => {
         e.stopPropagation();
         await toggleLyricsPanel(lyricsPanel, spotifyDetails.artist, spotifyDetails.title);
-        const isExpanded = lyricsPanel.classList.contains("expanded");
-        lyricsBtn.textContent = isExpanded ? "🎵 Hide Lyrics" : "🎵 Lyrics";
       };
-      
-      if (expandedPanels.has(tab.id)) {
-        lyricsBtn.textContent = "🎵 Hide Lyrics";
-      }
     }
 
     // Play/Pause button (will be placed below progress bar)
@@ -551,12 +572,19 @@ async function renderTabs(tabs = []) {
       const controlRow = document.createElement("div");
       controlRow.className = "control-row";
       
-      if (prevBtn) controlRow.appendChild(prevBtn);
-      controlRow.appendChild(playPauseBtn);
-      if (nextBtn) controlRow.appendChild(nextBtn);
+      const mediaControls = document.createElement("div");
+      mediaControls.className = "media-controls";
       
-      // Add lyrics button if available
+      if (prevBtn) mediaControls.appendChild(prevBtn);
+      mediaControls.appendChild(playPauseBtn);
+      if (nextBtn) mediaControls.appendChild(nextBtn);
+      
+      controlRow.appendChild(mediaControls);
+      
       if (lyricsBtn) {
+        const separator = document.createElement("div");
+        separator.className = "control-separator";
+        controlRow.appendChild(separator);
         controlRow.appendChild(lyricsBtn);
       }
       

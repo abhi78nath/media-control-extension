@@ -238,38 +238,73 @@ li.muted .mute-btn:hover {
   /* background: rgba(21, 128, 61, 1); */
 }
 
-/* Control row - for play/pause and lyrics buttons */
 .control-row {
   display: flex;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px 8px 8px;
+  flex-shrink: 0;
+  gap: 0;
+}
+
+/* Media controls container */
+.media-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Separator */
+.control-separator {
+  width: 1px;
+  height: 20px;
+  background-color: var(--border-color);
+  /* Fallback */
+  margin: 0 16px;
+  opacity: 0.3;
   flex-shrink: 0;
 }
 
+/* Removed .lyrics-row */
+
 /* Lyrics button */
+/* Lyrics button - compact icon version */
 .lyrics-btn {
-  flex-shrink: 0;
-  padding: 6px 14px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  font-family: 'Inter', sans-serif;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: none;
-  border-radius: 20px;
+  border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
-  color: white;
-  box-shadow: var(--shadow-sm);
-  letter-spacing: -0.01em;
+  background: transparent;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* margin-left: auto; */
+  /* Pushes it to the right */
+}
+
+.lyrics-icon {
+  width: 24px;
+  height: 24px;
+  background-color: currentColor;
+  -webkit-mask-image: url('assets/lyrics.svg');
+  mask-image: url('assets/lyrics.svg');
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 
 .lyrics-btn:hover {
-  transform: translateY(-1px);
-  background: linear-gradient(135deg, #1ed760 0%, #1fdf64 100%);
-  box-shadow: var(--shadow-md);
+  transform: scale(0.95);
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.8;
 }
 
 .lyrics-btn:active {
@@ -372,7 +407,8 @@ li.muted .mute-btn:hover {
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #1db954 0%, #1ed760 100%);
+  background: var(--text-color);
+  /* Fallback */
   border-radius: 3px;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -380,10 +416,6 @@ li.muted .mute-btn:hover {
 
 
 
-/* Paused state - amber progress bar */
-li.paused .progress-bar-fill {
-  background: linear-gradient(90deg, #f59e0b 0%, #fb923c 100%);
-}
 
 /* Lyrics Panel */
 .lyrics-panel {
