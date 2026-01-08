@@ -304,13 +304,11 @@ async function renderTabs(tabs = []) {
       
       const progressBarId = `progress-${tab.id}`;
       progressBar.innerHTML = `
+        <span id="${progressBarId}-time" class="progress-time-current">${currentTimeDisplay}</span>
         <div class="progress-bar-wrapper">
           <div id="${progressBarId}-fill" class="progress-bar-fill" style="width: ${progressPercent}%"></div>
         </div>
-        <div class="progress-times">
-          <span id="${progressBarId}-time" class="progress-time-current">${currentTimeDisplay}</span>
-          <span class="progress-time-total">${spotifyDetails.duration}</span>
-        </div>
+        <span class="progress-time-total">${spotifyDetails.duration}</span>
       `;
 
       // Start local simulation if playing
