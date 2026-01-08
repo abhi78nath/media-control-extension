@@ -277,8 +277,7 @@ li.muted .mute-btn:hover {
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
+  background: transparent;
   color: var(--text-color);
   display: flex;
   align-items: center;
@@ -288,8 +287,8 @@ li.muted .mute-btn:hover {
 }
 
 .lyrics-icon {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   background-color: currentColor;
   -webkit-mask-image: url('assets/lyrics.svg');
   mask-image: url('assets/lyrics.svg');
@@ -302,9 +301,10 @@ li.muted .mute-btn:hover {
 }
 
 .lyrics-btn:hover {
-  /* transform: translateY(-1px); */
-  background: rgba(255, 255, 255, 0.25);
-  box-shadow: var(--shadow-md);
+  transform: scale(0.95);
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.8;
 }
 
 .lyrics-btn:active {

@@ -259,7 +259,7 @@ async function renderTabs(tabs = []) {
             if (lyricsBtnEl) {
               lyricsBtnEl.style.color = finalTextColor;
               // Also ensure it's not using the default gradient if we want semi-transparent
-              lyricsBtnEl.style.background = 'rgba(255, 255, 255, 0.15)';
+              // lyricsBtnEl.style.background = 'rgba(255, 255, 255, 0.15)';
               lyricsBtnEl.style.backdropFilter = 'blur(4px)';
               lyricsBtnEl.style.border = `1px solid rgba(${r}, ${g}, ${b}, 0.2)`;
             }
