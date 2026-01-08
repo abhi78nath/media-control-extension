@@ -318,6 +318,16 @@ li.muted .mute-btn:hover {
   mask-image: url('assets/pause.svg');
 }
 
+.play-pause-icon.next {
+  -webkit-mask-image: url('assets/next-track.svg');
+  mask-image: url('assets/next-track.svg');
+}
+
+.play-pause-icon.prev {
+  -webkit-mask-image: url('assets/prev-track.svg');
+  mask-image: url('assets/prev-track.svg');
+}
+
 .play-pause-btn:hover {
   transform: scale(0.95);
 }
