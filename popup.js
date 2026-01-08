@@ -248,11 +248,11 @@ async function renderTabs(tabs = []) {
             // Ensure icon inherits color
             muteIcon.style.color = finalTextColor;
             
-            // Update play/pause button color (SVG will inherit via currentColor)
-            const playPauseBtn = li.querySelector('.play-pause-btn');
-            if (playPauseBtn) {
-              playPauseBtn.style.color = finalTextColor;
-            }
+            // Update play/pause/prev/next button colors
+            const controlBtns = li.querySelectorAll('.play-pause-btn');
+            controlBtns.forEach(btn => {
+              btn.style.color = finalTextColor;
+            });
 
             // Update progress time colors to match readable text color
             const progressTimeCurrent = li.querySelector('.progress-time-current');
@@ -488,6 +488,53 @@ async function renderTabs(tabs = []) {
       }
     };
 
+    // Create Prev/Next buttons (only for Spotify)
+    let prevBtn = null;
+    let nextBtn = null;
+    if (isSpotify) {
+      prevBtn = document.createElement("button");
+      prevBtn.className = "play-pause-btn"; // Reuse same class for size/style
+      prevBtn.title = "Previous Track";
+      const prevIcon = document.createElement("div");
+      prevIcon.className = "play-pause-icon prev";
+      prevBtn.appendChild(prevIcon);
+      prevBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              const btn = document.querySelector('[data-testid="control-button-skip-back"]');
+              if (btn) btn.click();
+            }
+          });
+        } catch (err) {
+          console.error("Failed to skip back:", err);
+        }
+      };
+
+      nextBtn = document.createElement("button");
+      nextBtn.className = "play-pause-btn";
+      nextBtn.title = "Next Track";
+      const nextIcon = document.createElement("div");
+      nextIcon.className = "play-pause-icon next";
+      nextBtn.appendChild(nextIcon);
+      nextBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              const btn = document.querySelector('[data-testid="control-button-skip-forward"]');
+              if (btn) btn.click();
+            }
+          });
+        } catch (err) {
+          console.error("Failed to skip forward:", err);
+        }
+      };
+    }
+
     // Click anywhere else on the row → focus the tab
     mainRow.onclick = () => {
       chrome.tabs.update(tab.id, { active: true });
@@ -503,7 +550,10 @@ async function renderTabs(tabs = []) {
       // Create control row for play/pause button (below progress bar)
       const controlRow = document.createElement("div");
       controlRow.className = "control-row";
+      
+      if (prevBtn) controlRow.appendChild(prevBtn);
       controlRow.appendChild(playPauseBtn);
+      if (nextBtn) controlRow.appendChild(nextBtn);
       
       // Add lyrics button if available
       if (lyricsBtn) {
