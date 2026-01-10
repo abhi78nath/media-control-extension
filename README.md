@@ -1,6 +1,11 @@
 # Media Control Extension
 
-A powerful browser extension that detects media playing in **any browser tab**. It provides quick media controls, real-time progress tracking, and seamless, one-click access to song lyrics.
+Ever been deep into work when a song hits *just right*?  
+You want the lyrics — *now* — but tab switching kills the vibe.
+
+This extension brings lyrics and media controls right to you.  
+It detects media playing in **any browser tab**, shows real-time progress, and lets you sing along with a single click — no distractions, no lost focus, just good music and productivity.
+
 
 ## ✨ Key Features
 
