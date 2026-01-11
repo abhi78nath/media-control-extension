@@ -172,13 +172,10 @@ li:hover .album-image {
 
 
 
-/* Mute button - top right corner */
+/* Mute button - in control row */
 .mute-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   display: flex;
   align-items: center;
@@ -189,17 +186,18 @@ li:hover .album-image {
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
   color: var(--text-color);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   z-index: 10;
 }
 
 .mute-btn:hover {
-  transform: scale(1.1);
-  background: rgba(255, 255, 255, 0.25);
-  box-shadow: var(--shadow-md);
+  transform: scale(0.95);
+  background: transparent;
+  opacity: 0.8;
+  box-shadow: none;
 }
 
 .mute-btn:active {
@@ -207,8 +205,8 @@ li:hover .album-image {
 }
 
 .mute-icon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background-color: currentColor;
   -webkit-mask-size: contain;
   mask-size: contain;
@@ -235,6 +233,60 @@ li.muted .mute-btn {
 }
 
 
+
+
+/* Close Button - Top Right */
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-color);
+  z-index: 20;
+  opacity: 0;
+  /* Hidden by default */
+  transform: scale(0.9);
+}
+
+li:hover .close-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.close-btn:hover {
+  background: rgba(255, 0, 0, 0.6);
+  /* Red background on hover */
+  transform: scale(1.1);
+  color: white;
+}
+
+.close-btn:active {
+  transform: scale(0.95);
+}
+
+.close-icon {
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  -webkit-mask-image: url('assets/x.svg');
+  mask-image: url('assets/x.svg');
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
 
 .control-row {
   display: flex;

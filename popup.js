@@ -64,9 +64,9 @@ async function loadLyrics(panelElement, artist, title) {
 
   try {
     const result = await fetchLyrics(artist, title);
-    
+
     loadingEl.style.display = "none";
-    
+
     if (result.error) {
       showError(errorEl, result.error, panelElement, artist, title);
     } else if (result.lyrics) {
@@ -89,14 +89,14 @@ async function loadLyrics(panelElement, artist, title) {
 function showError(errorEl, message, panelElement, artist, title) {
   errorEl.innerHTML = `<div>${message}</div>`;
   errorEl.style.display = "flex"; // Changed to flex for centering
-  
+
   const retryBtn = document.createElement("button");
   retryBtn.className = "retry-btn";
-  
+
   const retryIcon = document.createElement("div");
   retryIcon.className = "retry-icon";
   retryBtn.appendChild(retryIcon);
-  
+
   const btnText = document.createTextNode("Retry");
   retryBtn.appendChild(btnText);
 
@@ -104,21 +104,21 @@ function showError(errorEl, message, panelElement, artist, title) {
     e.stopPropagation();
     loadLyrics(panelElement, artist, title);
   };
-  
+
   errorEl.appendChild(retryBtn);
 }
 
 // Toggle lyrics panel function
 async function toggleLyricsPanel(panelElement, artist, title) {
   const isExpanded = panelElement.classList.contains("expanded");
-  
+
   if (isExpanded) {
     // Collapse panel
     panelElement.classList.remove("expanded");
   } else {
     // Expand panel and load lyrics if not already loaded
     panelElement.classList.add("expanded");
-    
+
     // Only load if not already loaded
     if (!panelElement.dataset.loaded) {
       await loadLyrics(panelElement, artist, title);
@@ -128,11 +128,11 @@ async function toggleLyricsPanel(panelElement, artist, title) {
 
 async function renderTabs(tabs = []) {
   const list = document.getElementById("list");
-  
+
   // Clear any running progress intervals before re-rendering
   progressIntervals.forEach(interval => clearInterval(interval));
   progressIntervals.clear();
-  
+
   // Save expanded panel states and loaded lyrics before clearing
   const expandedPanels = new Map();
   const loadedLyrics = new Map();
@@ -145,17 +145,17 @@ async function renderTabs(tabs = []) {
         // Save loaded lyrics content if available
         const contentEl = panel.querySelector(".lyrics-content");
         if (contentEl && contentEl.style.display !== "none" && contentEl.innerHTML) {
-            // Save metadata to check for staleness
-            loadedLyrics.set(id, {
-                content: contentEl.innerHTML,
-                artist: panel.dataset.artist,
-                title: panel.dataset.title
-            });
+          // Save metadata to check for staleness
+          loadedLyrics.set(id, {
+            content: contentEl.innerHTML,
+            artist: panel.dataset.artist,
+            title: panel.dataset.title
+          });
         }
       }
     });
   }
-  
+
   list.innerHTML = "";
 
   if (tabs.length === 0) {
@@ -184,7 +184,7 @@ async function renderTabs(tabs = []) {
   const spotifyKeys = tabs
     .filter(tab => tab.url && tab.url.includes('open.spotify.com'))
     .map(tab => `spotifyDetails_${tab.id}`);
-  
+
   const spotifyData = {};
   if (spotifyKeys.length > 0) {
     const stored = await chrome.storage.local.get(spotifyKeys);
@@ -206,11 +206,11 @@ async function renderTabs(tabs = []) {
     }
     li.title = tab.url;
 
-    // Mute button (top right corner)
+    // Mute button - moved to control row
     const muteBtn = document.createElement("button");
     muteBtn.className = "mute-btn";
     muteBtn.title = tab.muted ? "Unmute this tab" : "Mute this tab";
-    
+
     const muteIcon = document.createElement("div");
     muteIcon.className = `mute-icon ${tab.muted ? 'unmute' : 'mute'}`;
     muteBtn.appendChild(muteIcon);
@@ -223,30 +223,74 @@ async function renderTabs(tabs = []) {
         console.error("Failed to toggle mute:", err);
       }
     };
-    
-    li.appendChild(muteBtn);
+
+    // Removed direct append to li
+
+
+    // Close button (Top Left)
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "close-btn";
+
+    const closeIcon = document.createElement("div");
+    closeIcon.className = "close-icon";
+    closeBtn.appendChild(closeIcon);
+
+    closeBtn.onclick = async (e) => {
+      e.stopPropagation();
+      // Remove from UI immediately for responsiveness
+      li.style.opacity = '0';
+      li.style.transform = 'scale(0.9)';
+      setTimeout(() => li.remove(), 200);
+
+      // Tell background to stop tracking this tab
+      chrome.runtime.sendMessage({ action: "remove-media-tab", tabId: tab.id });
+
+      // Pause the media
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            const media = document.querySelectorAll('video, audio');
+            for (const m of media) {
+              if (!m.paused) {
+                m.pause();
+              }
+            }
+            // Try specific Spotify button too
+            const spotifyBtn = document.querySelector('[data-testid="control-button-playpause"]');
+            if (spotifyBtn && spotifyBtn.getAttribute('aria-label') === 'Pause') {
+              spotifyBtn.click();
+            }
+          }
+        });
+      } catch (err) {
+        console.error("Failed to pause media on close:", err);
+      }
+    };
+
+    li.appendChild(closeBtn);
 
     // Title + hostname + image
     const info = document.createElement("div");
     info.className = "info";
     const isSpotify = tab.url && tab.url.includes('open.spotify.com');
     const spotifyDetails = spotifyData[tab.id];
-    
+
     if (isSpotify && spotifyDetails && spotifyDetails.title) {
       // Create info text container
       const infoText = document.createElement("div");
       infoText.className = "info-text";
-      
+
       const titleEl = document.createElement("strong");
       titleEl.textContent = spotifyDetails.title || tab.title || "Untitled";
       infoText.appendChild(titleEl);
-      
+
       infoText.appendChild(document.createElement("br"));
-      
+
       const artistEl = document.createElement("small");
       artistEl.textContent = spotifyDetails.artist || "Unknown Artist";
       infoText.appendChild(artistEl);
-      
+
       if (tab.paused) {
         infoText.appendChild(document.createElement("br"));
         const pausedEl = document.createElement("small");
@@ -262,44 +306,47 @@ async function renderTabs(tabs = []) {
         img.src = spotifyDetails.image;
         img.alt = "Album cover";
         img.className = "album-image";
-        
+
         img.onload = () => {
           // Get the most dominant color for the background
           const dominantColors = getDominantColors(img, 1, 'desc');
-          
+
           // Get the least dominant colors for the text (accents)
           const leastColors = getDominantColors(img, 3, 'asc');
-          
+
           if (dominantColors && dominantColors.length > 0) {
             const primary = dominantColors[0];
             const { r, g, b } = primary;
-            
+
             // Set background to primary (most dominant) color
             li.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
             li.style.backgroundImage = 'none';
             li.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
-            
+
             // Use the new accessible color generator
             const finalTextColor = getReadableTextColor(primary, leastColors || []);
-            
+
             // Apply text colors
             li.style.color = finalTextColor;
             titleEl.style.color = finalTextColor;
             artistEl.style.color = finalTextColor;
             artistEl.style.opacity = "0.9";
-            
+
             // Update paused indicator
             const pausedIndicator = infoText.querySelector("small[style*='italic']");
             if (pausedIndicator) {
               pausedIndicator.style.color = finalTextColor;
               pausedIndicator.style.opacity = "0.8";
             }
-            
+
             // Update mute button color
             muteBtn.style.color = finalTextColor;
             // Ensure icon inherits color
             muteIcon.style.color = finalTextColor;
-            
+
+            // Update close button color (except on hover where it's white)
+            closeBtn.style.color = finalTextColor;
+
             // Update play/pause/prev/next button colors
             const controlBtns = li.querySelectorAll('.play-pause-btn');
             controlBtns.forEach(btn => {
@@ -336,10 +383,10 @@ async function renderTabs(tabs = []) {
             }
           }
         };
-        
+
         info.appendChild(img);
       }
-      
+
       info.appendChild(infoText);
     } else {
       const pausedIndicator = tab.paused ? '<br><small style="color: #888; font-style: italic;">⏸ Paused</small>' : '';
@@ -356,14 +403,14 @@ async function renderTabs(tabs = []) {
     if (isSpotify && spotifyDetails && spotifyDetails.duration) {
       progressBar = document.createElement("div");
       progressBar.className = "progress-container";
-      
+
       let progressPercent = 0;
       let currentTimeDisplay = "0:00";
-      
+
       // Use currentTime directly from Spotify if available
       let currentSeconds = 0;
       const totalSeconds = parseTimeToSeconds(spotifyDetails.duration);
-      
+
       if (spotifyDetails.currentTime) {
         currentTimeDisplay = spotifyDetails.currentTime;
         currentSeconds = parseTimeToSeconds(spotifyDetails.currentTime);
@@ -376,7 +423,7 @@ async function renderTabs(tabs = []) {
         currentSeconds = Math.floor((progressPercent / 100) * totalSeconds);
         currentTimeDisplay = formatTime(currentSeconds);
       }
-      
+
       const progressBarId = `progress-${tab.id}`;
       progressBar.innerHTML = `
         <span id="${progressBarId}-time" class="progress-time-current">${currentTimeDisplay}</span>
@@ -395,7 +442,7 @@ async function renderTabs(tabs = []) {
 
         const interval = setInterval(() => {
           currentSeconds++;
-          
+
           if (currentSeconds > totalSeconds) {
             clearInterval(interval);
             progressIntervals.delete(tab.id);
@@ -405,7 +452,7 @@ async function renderTabs(tabs = []) {
           // Update DOM directly
           const fillEl = document.getElementById(`${progressBarId}-fill`);
           const timeEl = document.getElementById(`${progressBarId}-time`);
-          
+
           if (fillEl && timeEl) {
             const newPercent = (currentSeconds / totalSeconds) * 100;
             fillEl.style.width = `${newPercent}%`;
@@ -416,7 +463,7 @@ async function renderTabs(tabs = []) {
             progressIntervals.delete(tab.id);
           }
         }, 1000);
-        
+
         progressIntervals.set(tab.id, interval);
       }
     }
@@ -437,7 +484,7 @@ async function renderTabs(tabs = []) {
       lyricsIcon.className = "lyrics-icon";
 
       lyricsBtn.appendChild(lyricsIcon);
-      
+
       // Create lyrics panel
       lyricsPanel = document.createElement("div");
       lyricsPanel.className = "lyrics-panel";
@@ -447,19 +494,19 @@ async function renderTabs(tabs = []) {
         <div class="lyrics-content"></div>
         <div class="lyrics-error"></div>
       `;
-      
+
       // Restore expanded state if it was previously expanded
       if (expandedPanels.has(tab.id)) {
         lyricsPanel.classList.add("expanded");
         const loadingEl = lyricsPanel.querySelector(".lyrics-loading");
         const contentEl = lyricsPanel.querySelector(".lyrics-content");
         const errorEl = lyricsPanel.querySelector(".lyrics-error");
-        
+
         // Check if we have cached lyrics for this tab AND it matches current song
         const loadedData = loadedLyrics.get(tab.id);
-        const isSameSong = loadedData && 
-                          loadedData.artist === spotifyDetails.artist && 
-                          loadedData.title === spotifyDetails.title;
+        const isSameSong = loadedData &&
+          loadedData.artist === spotifyDetails.artist &&
+          loadedData.title === spotifyDetails.title;
 
         if (isSameSong) {
           loadingEl.style.display = "none";
@@ -475,7 +522,7 @@ async function renderTabs(tabs = []) {
           loadLyrics(lyricsPanel, spotifyDetails.artist, spotifyDetails.title);
         }
       }
-      
+
       lyricsBtn.onclick = async (e) => {
         e.stopPropagation();
         await toggleLyricsPanel(lyricsPanel, spotifyDetails.artist, spotifyDetails.title);
@@ -487,7 +534,7 @@ async function renderTabs(tabs = []) {
     const isPaused = tab.paused || !tab.audible;
     playPauseBtn.className = "play-pause-btn";
     playPauseBtn.title = isPaused ? "Resume playback" : "Pause playback";
-    
+
     // Create div element for SVG mask icon
     const playPauseIcon = document.createElement("div");
     playPauseIcon.className = `play-pause-icon ${isPaused ? 'play' : 'pause'}`;
@@ -518,7 +565,7 @@ async function renderTabs(tabs = []) {
             return played;
           }
         });
-        
+
         // Update icon based on new state
         const icon = playPauseBtn.querySelector('.play-pause-icon');
         if (icon) {
@@ -591,47 +638,57 @@ async function renderTabs(tabs = []) {
     };
 
     mainRow.appendChild(info);
-    
+
     // Add progress bar and play/pause button container if available
     if (progressBar) {
       mainRow.appendChild(progressBar);
-      
+
       // Create control row for play/pause button (below progress bar)
       const controlRow = document.createElement("div");
       controlRow.className = "control-row";
-      
+
       const mediaControls = document.createElement("div");
       mediaControls.className = "media-controls";
-      
+
       if (prevBtn) mediaControls.appendChild(prevBtn);
       mediaControls.appendChild(playPauseBtn);
       if (nextBtn) mediaControls.appendChild(nextBtn);
-      
+
       controlRow.appendChild(mediaControls);
-      
+
       if (lyricsBtn) {
         const separator = document.createElement("div");
         separator.className = "control-separator";
+
         controlRow.appendChild(separator);
         controlRow.appendChild(lyricsBtn);
       }
-      
+
+      // Always push mute button to the right
+      muteBtn.style.marginLeft = "auto";
+      controlRow.appendChild(muteBtn);
+
       mainRow.appendChild(controlRow);
     } else {
       // For non-Spotify tabs, add play/pause in a control row
       const controlRow = document.createElement("div");
       controlRow.className = "control-row";
       controlRow.appendChild(playPauseBtn);
+
+      // Add mute button at the end
+      muteBtn.style.marginLeft = "auto";
+      controlRow.appendChild(muteBtn);
+
       mainRow.appendChild(controlRow);
     }
-    
+
     li.appendChild(mainRow);
-    
+
     // Add lyrics panel if it exists
     if (lyricsPanel) {
       li.appendChild(lyricsPanel);
     }
-    
+
     list.appendChild(li);
   });
 }
