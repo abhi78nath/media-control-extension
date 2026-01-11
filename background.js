@@ -1,7 +1,8 @@
 // background.js (service worker)
 
-// Import Spotify extraction functionality
+// Import extractors
 importScripts('utils/extractors/spotify-extractor.js');
+importScripts('utils/extractors/youtube-extractor.js');
 
 let lastPlayingTabsHash = null;
 let forceUpdate = false;
@@ -19,13 +20,6 @@ function updateMediaTabs() {
           recentlyPlayingTabs.set(tab.id, now);
         }
       });
-      
-      // // Remove old entries (tabs that haven't been audible for a while)
-      // for (const [tabId, timestamp] of recentlyPlayingTabs.entries()) {
-      //   if (now - timestamp > RECENT_TAB_TIMEOUT) {
-      //     recentlyPlayingTabs.delete(tabId);
-      //   }
-      // }
       
       // Include tabs that are currently audible OR were recently audible
       const playingTabs = tabs
@@ -59,10 +53,14 @@ function updateMediaTabs() {
       lastPlayingTabsHash = currentHash;
       forceUpdate = false; // Reset force flag
   
-      // Check for Spotify tabs and get song details
+      // Check for music tabs and get song details
       playingTabs.forEach(tab => {
-        if (tab.url && tab.url.includes('open.spotify.com')) {
-          getSpotifySongDetails(tab.id);
+        if (tab.url) {
+            if (tab.url.includes('open.spotify.com')) {
+                getSpotifySongDetails(tab.id);
+            } else if (tab.url.includes('youtube.com') || tab.url.includes('youtu.be')) {
+                getYouTubeSongDetails(tab.id);
+            }
         }
       });
   
@@ -107,13 +105,16 @@ function updateMediaTabs() {
   chrome.runtime.onStartup.addListener(updateMediaTabs);
   chrome.runtime.onInstalled.addListener(updateMediaTabs);
 
-  // Listen for Spotify details updates and trigger refresh
+  // Listen for details updates and trigger refresh
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local') {
-      // Check if any Spotify details were updated
-      const spotifyDetailChanged = Object.keys(changes).some(key => key.startsWith('spotifyDetails_'));
-      if (spotifyDetailChanged) {
-        // Force an update when Spotify details change (ignore hash check)
+      // Check if any music details were updated (Spotify or YouTube)
+      const detailChanged = Object.keys(changes).some(key => 
+          key.startsWith('spotifyDetails_') || key.startsWith('youtubeDetails_')
+      );
+      
+      if (detailChanged) {
+        // Force an update when details change (ignore hash check)
         forceUpdate = true;
         updateMediaTabs();
       }

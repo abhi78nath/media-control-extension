@@ -3,6 +3,7 @@
 // Helper function to parse time string (e.g., "3:45") to seconds
 function parseTimeToSeconds(timeStr) {
   if (!timeStr) return 0;
+  // Handle "MM:SS" or "HH:MM:SS"
   const parts = timeStr.split(':').map(p => parseInt(p, 10));
   if (parts.length === 2) {
     return parts[0] * 60 + parts[1]; // MM:SS
@@ -172,7 +173,7 @@ async function renderTabs(tabs = []) {
           </div>
           <div class="empty-text">
             <h3>No Media Playing</h3>
-            <p>Play music on Spotify, or YouTube to get started.</p>
+            <p>Play music on Spotify, YouTube, or YouTube Music.</p>
           </div>
         </div>
       </li>
@@ -180,23 +181,27 @@ async function renderTabs(tabs = []) {
     return;
   }
 
-  // Load all Spotify details at once
-  const spotifyKeys = tabs
-    .filter(tab => tab.url && tab.url.includes('open.spotify.com'))
-    .map(tab => `spotifyDetails_${tab.id}`);
+  // Identify music tabs to load details for
+  const spotifyTabs = tabs.filter(tab => tab.url && tab.url.includes('open.spotify.com'));
+  const youtubeTabs = tabs.filter(tab => tab.url && (tab.url.includes('youtube.com') || tab.url.includes('youtu.be')));
+
+  // Prepare storage keys
+  const storageKeys = [];
+  spotifyTabs.forEach(t => storageKeys.push(`spotifyDetails_${t.id}`));
+  youtubeTabs.forEach(t => storageKeys.push(`youtubeDetails_${t.id}`));
   
-  const spotifyData = {};
-  if (spotifyKeys.length > 0) {
-    const stored = await chrome.storage.local.get(spotifyKeys);
-    Object.keys(stored).forEach(key => {
-      const tabId = key.replace('spotifyDetails_', '');
-      spotifyData[tabId] = stored[key];
-    });
-  }
+  const storedData = storageKeys.length > 0 ? await chrome.storage.local.get(storageKeys) : {};
+
+  // Sort: Playing first, then paused
+  tabs.sort((a, b) => {
+    if (a.paused === b.paused) return 0;
+    return a.paused ? 1 : -1;
+  });
 
   tabs.forEach((tab) => {
     const li = document.createElement("li");
-    // Set class based on state: paused > muted > playing
+    
+    // Determine played/paused/muted state
     if (tab.paused) {
       li.className = "paused";
     } else if (tab.muted) {
@@ -206,7 +211,7 @@ async function renderTabs(tabs = []) {
     }
     li.title = tab.url;
 
-    // Mute button (top right corner)
+    // --- Mute Button ---
     const muteBtn = document.createElement("button");
     muteBtn.className = "mute-btn";
     muteBtn.title = tab.muted ? "Unmute this tab" : "Mute this tab";
@@ -226,25 +231,39 @@ async function renderTabs(tabs = []) {
     
     li.appendChild(muteBtn);
 
-    // Title + hostname + image
+    // --- Media Info Preparation ---
+    const isSpotify = tab.url && tab.url.includes('open.spotify.com');
+    const isYouTube = tab.url && (tab.url.includes('youtube.com') || tab.url.includes('youtu.be'));
+    
+    let songDetails = null;
+    let serviceType = null; // 'spotify' | 'youtube' | null
+
+    if (isSpotify) {
+        serviceType = 'spotify';
+        songDetails = storedData[`spotifyDetails_${tab.id}`];
+    } else if (isYouTube) {
+        serviceType = 'youtube';
+        songDetails = storedData[`youtubeDetails_${tab.id}`];
+    }
+
+    // --- Main Info Block ---
     const info = document.createElement("div");
     info.className = "info";
-    const isSpotify = tab.url && tab.url.includes('open.spotify.com');
-    const spotifyDetails = spotifyData[tab.id];
     
-    if (isSpotify && spotifyDetails && spotifyDetails.title) {
-      // Create info text container
-      const infoText = document.createElement("div");
-      infoText.className = "info-text";
-      
+    // Info Text Container
+    const infoText = document.createElement("div");
+    infoText.className = "info-text";
+
+    if (songDetails && songDetails.title) {
+      // Valid song details found
       const titleEl = document.createElement("strong");
-      titleEl.textContent = spotifyDetails.title || tab.title || "Untitled";
+      titleEl.textContent = songDetails.title;
       infoText.appendChild(titleEl);
       
       infoText.appendChild(document.createElement("br"));
       
       const artistEl = document.createElement("small");
-      artistEl.textContent = spotifyDetails.artist || "Unknown Artist";
+      artistEl.textContent = songDetails.artist || (songDetails.album || "Unknown Artist");
       infoText.appendChild(artistEl);
       
       if (tab.paused) {
@@ -255,31 +274,29 @@ async function renderTabs(tabs = []) {
         infoText.appendChild(pausedEl);
       }
 
-      // Create image element if available
-      if (spotifyDetails.image) {
+      // Metadata Image (Album Art / Thumbnail)
+      if (songDetails.image) {
         const img = document.createElement("img");
         img.crossOrigin = "Anonymous";
-        img.src = spotifyDetails.image;
-        img.alt = "Album cover";
+        img.src = songDetails.image;
+        img.alt = "Cover art";
         img.className = "album-image";
         
         img.onload = () => {
-          // Get the most dominant color for the background
+          // Dynamic Colors
           const dominantColors = getDominantColors(img, 1, 'desc');
-          
-          // Get the least dominant colors for the text (accents)
           const leastColors = getDominantColors(img, 3, 'asc');
           
           if (dominantColors && dominantColors.length > 0) {
             const primary = dominantColors[0];
             const { r, g, b } = primary;
             
-            // Set background to primary (most dominant) color
+            // Background
             li.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
             li.style.backgroundImage = 'none';
             li.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
             
-            // Use the new accessible color generator
+            // Text color logic
             const finalTextColor = getReadableTextColor(primary, leastColors || []);
             
             // Apply text colors
@@ -288,52 +305,39 @@ async function renderTabs(tabs = []) {
             artistEl.style.color = finalTextColor;
             artistEl.style.opacity = "0.9";
             
-            // Update paused indicator
+            // Apply to paused indicator
             const pausedIndicator = infoText.querySelector("small[style*='italic']");
             if (pausedIndicator) {
               pausedIndicator.style.color = finalTextColor;
-              pausedIndicator.style.opacity = "0.8";
             }
             
-            // Update mute button color
+            // Controls color
             muteBtn.style.color = finalTextColor;
-            // Ensure icon inherits color
             muteIcon.style.color = finalTextColor;
             
-            // Update play/pause/prev/next button colors
-            const controlBtns = li.querySelectorAll('.play-pause-btn');
-            controlBtns.forEach(btn => {
-              btn.style.color = finalTextColor;
-            });
+            li.querySelectorAll('.play-pause-btn').forEach(btn => btn.style.color = finalTextColor);
 
-            // Update lyrics button color
             const lyricsBtnEl = li.querySelector('.lyrics-btn');
             if (lyricsBtnEl) {
               lyricsBtnEl.style.color = finalTextColor;
-              // Also ensure it's not using the default gradient if we want semi-transparent
-              // lyricsBtnEl.style.background = 'rgba(255, 255, 255, 0.15)';
               lyricsBtnEl.style.backdropFilter = 'blur(4px)';
               lyricsBtnEl.style.border = `1px solid rgba(${r}, ${g}, ${b}, 0.2)`;
             }
 
-            // Update progress time colors to match readable text color
+            // Progress bar colors
             const progressTimeCurrent = li.querySelector('.progress-time-current');
             const progressTimeTotal = li.querySelector('.progress-time-total');
             if (progressTimeCurrent) progressTimeCurrent.style.color = finalTextColor;
             if (progressTimeTotal) progressTimeTotal.style.color = finalTextColor;
 
-            // Update progress bar fill color
             const progressBarFill = li.querySelector('.progress-bar-fill');
             if (progressBarFill) {
               progressBarFill.style.background = finalTextColor;
               progressBarFill.style.opacity = "0.9";
             }
-
-            // Update separator color
+            
             const separator = li.querySelector('.control-separator');
-            if (separator) {
-              separator.style.background = finalTextColor;
-            }
+            if (separator) separator.style.background = finalTextColor;
           }
         };
         
@@ -342,6 +346,7 @@ async function renderTabs(tabs = []) {
       
       info.appendChild(infoText);
     } else {
+      // Fallback: Generic Tab Info
       const pausedIndicator = tab.paused ? '<br><small style="color: #888; font-style: italic;">⏸ Paused</small>' : '';
       info.innerHTML = `
         <div class="info-text">
@@ -351,58 +356,59 @@ async function renderTabs(tabs = []) {
       `;
     }
 
-    // Create progress bar for Spotify tabs with progress data
+    // --- Progress Bar ---
     let progressBar = null;
-    if (isSpotify && spotifyDetails && spotifyDetails.duration) {
+    let hasProgressData = songDetails && (songDetails.duration || songDetails.progress);
+    
+    if (hasProgressData) {
       progressBar = document.createElement("div");
       progressBar.className = "progress-container";
       
       let progressPercent = 0;
       let currentTimeDisplay = "0:00";
+      let totalTimeDisplay = songDetails.duration || "0:00";
       
-      // Use currentTime directly from Spotify if available
       let currentSeconds = 0;
-      const totalSeconds = parseTimeToSeconds(spotifyDetails.duration);
+      let totalSeconds = parseTimeToSeconds(songDetails.duration);
       
-      if (spotifyDetails.currentTime) {
-        currentTimeDisplay = spotifyDetails.currentTime;
-        currentSeconds = parseTimeToSeconds(spotifyDetails.currentTime);
+      if (songDetails.currentTime) {
+        currentTimeDisplay = songDetails.currentTime;
+        currentSeconds = parseTimeToSeconds(songDetails.currentTime);
         if (totalSeconds > 0) {
           progressPercent = (currentSeconds / totalSeconds) * 100;
         }
-      } else if (spotifyDetails.progress) {
-        // Fallback: parse progress percentage
-        progressPercent = parseFloat(spotifyDetails.progress) || 0;
-        currentSeconds = Math.floor((progressPercent / 100) * totalSeconds);
-        currentTimeDisplay = formatTime(currentSeconds);
+      } else if (songDetails.progress) {
+        // Fallback or explicit progress percentage
+        progressPercent = parseFloat(songDetails.progress) || 0;
+        if (totalSeconds > 0) {
+             currentSeconds = Math.floor((progressPercent / 100) * totalSeconds);
+             currentTimeDisplay = formatTime(currentSeconds);
+        }
       }
       
+      // Safety clamp
+      if (progressPercent > 100) progressPercent = 100;
+
       const progressBarId = `progress-${tab.id}`;
       progressBar.innerHTML = `
         <span id="${progressBarId}-time" class="progress-time-current">${currentTimeDisplay}</span>
         <div class="progress-bar-wrapper">
           <div id="${progressBarId}-fill" class="progress-bar-fill" style="width: ${progressPercent}%"></div>
         </div>
-        <span class="progress-time-total">${spotifyDetails.duration}</span>
+        <span class="progress-time-total">${totalTimeDisplay}</span>
       `;
 
-      // Start local simulation if playing
+      // Live Simulation
       if (!tab.paused && totalSeconds > 0) {
-        // Clear any existing interval for this tab just in case
-        if (progressIntervals.has(tab.id)) {
-          clearInterval(progressIntervals.get(tab.id));
-        }
+        if (progressIntervals.has(tab.id)) clearInterval(progressIntervals.get(tab.id));
 
         const interval = setInterval(() => {
           currentSeconds++;
-          
           if (currentSeconds > totalSeconds) {
             clearInterval(interval);
             progressIntervals.delete(tab.id);
             return;
           }
-
-          // Update DOM directly
           const fillEl = document.getElementById(`${progressBarId}-fill`);
           const timeEl = document.getElementById(`${progressBarId}-time`);
           
@@ -411,84 +417,76 @@ async function renderTabs(tabs = []) {
             fillEl.style.width = `${newPercent}%`;
             timeEl.textContent = formatTime(currentSeconds);
           } else {
-            // Element no longer exists, clear interval
             clearInterval(interval);
-            progressIntervals.delete(tab.id);
           }
         }, 1000);
-        
         progressIntervals.set(tab.id, interval);
       }
     }
 
-    // Create main content row (info)
+    // --- Controls Row (Play/Pause, Prev/Next, Lyrics) ---
     const mainRow = document.createElement("div");
     mainRow.className = "media-row";
-
-    // Show Lyrics button (only for Spotify tabs with song details)
+    
+    // Lyrics Button
     let lyricsPanel = null;
     let lyricsBtn = null;
-    if (isSpotify && spotifyDetails && spotifyDetails.title && spotifyDetails.artist) {
-      lyricsBtn = document.createElement("button");
-      lyricsBtn.className = "lyrics-btn";
-      lyricsBtn.title = "Toggle lyrics for this song";
-
-      const lyricsIcon = document.createElement("div");
-      lyricsIcon.className = "lyrics-icon";
-
-      lyricsBtn.appendChild(lyricsIcon);
-      
-      // Create lyrics panel
-      lyricsPanel = document.createElement("div");
-      lyricsPanel.className = "lyrics-panel";
-      lyricsPanel.dataset.tabId = tab.id;
-      lyricsPanel.innerHTML = `
-        <div class="lyrics-loading">Loading lyrics...</div>
-        <div class="lyrics-content"></div>
-        <div class="lyrics-error"></div>
-      `;
-      
-      // Restore expanded state if it was previously expanded
-      if (expandedPanels.has(tab.id)) {
-        lyricsPanel.classList.add("expanded");
-        const loadingEl = lyricsPanel.querySelector(".lyrics-loading");
-        const contentEl = lyricsPanel.querySelector(".lyrics-content");
-        const errorEl = lyricsPanel.querySelector(".lyrics-error");
+    
+    // Show lyrics for any supported service if we have artist/title
+    if (songDetails && songDetails.title && songDetails.artist) {
+        lyricsBtn = document.createElement("button");
+        lyricsBtn.className = "lyrics-btn";
+        lyricsBtn.title = "Toggle lyrics";
         
-        // Check if we have cached lyrics for this tab AND it matches current song
-        const loadedData = loadedLyrics.get(tab.id);
-        const isSameSong = loadedData && 
-                          loadedData.artist === spotifyDetails.artist && 
-                          loadedData.title === spotifyDetails.title;
+        const lyricsIcon = document.createElement("div");
+        lyricsIcon.className = "lyrics-icon";
+        lyricsBtn.appendChild(lyricsIcon);
 
-        if (isSameSong) {
-          loadingEl.style.display = "none";
-          contentEl.innerHTML = loadedData.content;
-          contentEl.style.display = "block";
-          errorEl.style.display = "none";
-          lyricsPanel.dataset.loaded = "true";
-          // Restore metadata
-          lyricsPanel.dataset.artist = loadedData.artist;
-          lyricsPanel.dataset.title = loadedData.title;
-        } else {
-          // If song changed or no lyrics loaded, load for new song
-          loadLyrics(lyricsPanel, spotifyDetails.artist, spotifyDetails.title);
+        lyricsPanel = document.createElement("div");
+        lyricsPanel.className = "lyrics-panel";
+        lyricsPanel.dataset.tabId = tab.id;
+        lyricsPanel.innerHTML = `
+            <div class="lyrics-loading">Loading lyrics...</div>
+            <div class="lyrics-content"></div>
+            <div class="lyrics-error"></div>
+        `;
+
+        if (expandedPanels.has(tab.id)) {
+            lyricsPanel.classList.add("expanded");
+            const loadingEl = lyricsPanel.querySelector(".lyrics-loading");
+            const contentEl = lyricsPanel.querySelector(".lyrics-content");
+            const errorEl = lyricsPanel.querySelector(".lyrics-error");
+            
+            const loadedData = loadedLyrics.get(tab.id);
+            const isSameSong = loadedData && 
+                              loadedData.artist === songDetails.artist && 
+                              loadedData.title === songDetails.title;
+
+            if (isSameSong) {
+              loadingEl.style.display = "none";
+              contentEl.innerHTML = loadedData.content;
+              contentEl.style.display = "block";
+              errorEl.style.display = "none";
+              lyricsPanel.dataset.loaded = "true";
+              lyricsPanel.dataset.artist = loadedData.artist;
+              lyricsPanel.dataset.title = loadedData.title;
+            } else {
+              loadLyrics(lyricsPanel, songDetails.artist, songDetails.title);
+            }
         }
-      }
-      
-      lyricsBtn.onclick = async (e) => {
-        e.stopPropagation();
-        await toggleLyricsPanel(lyricsPanel, spotifyDetails.artist, spotifyDetails.title);
-      };
+
+        lyricsBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await toggleLyricsPanel(lyricsPanel, songDetails.artist, songDetails.title);
+        };
     }
 
-    // Play/Pause button (will be placed below progress bar)
+    // Play/Pause Button
     const playPauseBtn = document.createElement("button");
     const isPaused = tab.paused || !tab.audible;
     playPauseBtn.className = "play-pause-btn";
     playPauseBtn.title = isPaused ? "Resume playback" : "Pause playback";
     
-    // Create div element for SVG mask icon
     const playPauseIcon = document.createElement("div");
     playPauseIcon.className = `play-pause-icon ${isPaused ? 'play' : 'pause'}`;
     playPauseBtn.appendChild(playPauseIcon);
@@ -498,93 +496,106 @@ async function renderTabs(tabs = []) {
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: () => {
-            const spotifyBtn = document.querySelector('[data-testid="control-button-playpause"]');
-            if (spotifyBtn) {
-              spotifyBtn.click();
-              return true;
-            }
+          func: (type) => {
+             // Universal media control fallback
+             const media = document.querySelectorAll('video, audio');
+             let toggled = false;
+             
+             // Service specific selectors
+             if (type === 'spotify') {
+                const btn = document.querySelector('[data-testid="control-button-playpause"]');
+                if (btn) { btn.click(); return true; }
+             } else if (type === 'youtube') {
+                const btn = document.querySelector('.ytp-play-button') || // Standard YT
+                            document.querySelector('#play-pause-button'); // YT Music
+                if (btn) { btn.click(); return true; }
+             }
 
-            const media = document.querySelectorAll('video, audio');
-            let played = false;
-            for (const m of media) {
-              if (!m.paused) {
-                m.pause();
-              } else {
-                m.play();
-                played = true;
-              }
-            }
-            return played;
-          }
+             // Fallback to HTML5 media
+             for (const m of media) {
+               if (!m.paused) { m.pause(); toggled = true; } 
+               else { m.play(); toggled = true; }
+             }
+             return toggled;
+          },
+          args: [serviceType]
         });
         
-        // Update icon based on new state
+        // Optimistic UI update
         const icon = playPauseBtn.querySelector('.play-pause-icon');
         if (icon) {
-          if (icon.classList.contains('play')) {
-            icon.classList.remove('play');
-            icon.classList.add('pause');
-            playPauseBtn.title = "Pause playback";
-          } else {
-            icon.classList.remove('pause');
-            icon.classList.add('play');
-            playPauseBtn.title = "Resume playback";
-          }
+           if (icon.classList.contains('play')) {
+              icon.classList.replace('play', 'pause');
+              playPauseBtn.title = "Pause playback";
+           } else {
+              icon.classList.replace('pause', 'play');
+              playPauseBtn.title = "Resume playback";
+           }
         }
       } catch (err) {
         console.error("Failed to toggle play/pause:", err);
       }
     };
 
-    // Create Prev/Next buttons (only for Spotify)
+    // Prev/Next Buttons
     let prevBtn = null;
     let nextBtn = null;
-    if (isSpotify) {
-      prevBtn = document.createElement("button");
-      prevBtn.className = "play-pause-btn"; // Reuse same class for size/style
-      prevBtn.title = "Previous Track";
-      const prevIcon = document.createElement("div");
-      prevIcon.className = "play-pause-icon prev";
-      prevBtn.appendChild(prevIcon);
-      prevBtn.onclick = async (e) => {
-        e.stopPropagation();
-        try {
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-              const btn = document.querySelector('[data-testid="control-button-skip-back"]');
-              if (btn) btn.click();
-            }
-          });
-        } catch (err) {
-          console.error("Failed to skip back:", err);
-        }
-      };
+    
+    // Allow controls for both Spotify and YouTube (playlists)
+    if (serviceType) {
+        prevBtn = document.createElement("button");
+        prevBtn.className = "play-pause-btn";
+        prevBtn.title = "Previous Track";
+        const prevIcon = document.createElement("div");
+        prevIcon.className = "play-pause-icon prev";
+        prevBtn.appendChild(prevIcon);
+        
+        prevBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: (type) => {
+                    if (type === 'spotify') {
+                        const btn = document.querySelector('[data-testid="control-button-skip-back"]');
+                        if (btn) btn.click();
+                    } else if (type === 'youtube') {
+                        const btn = document.querySelector('.ytp-prev-button') || 
+                                    document.querySelector('.previous-button');
+                        if (btn) btn.click();
+                        else window.history.back(); // Fallback for standard YT sometimes
+                    }
+                },
+                args: [serviceType]
+            });
+        };
 
-      nextBtn = document.createElement("button");
-      nextBtn.className = "play-pause-btn";
-      nextBtn.title = "Next Track";
-      const nextIcon = document.createElement("div");
-      nextIcon.className = "play-pause-icon next";
-      nextBtn.appendChild(nextIcon);
-      nextBtn.onclick = async (e) => {
-        e.stopPropagation();
-        try {
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => {
-              const btn = document.querySelector('[data-testid="control-button-skip-forward"]');
-              if (btn) btn.click();
-            }
-          });
-        } catch (err) {
-          console.error("Failed to skip forward:", err);
-        }
-      };
+        nextBtn = document.createElement("button");
+        nextBtn.className = "play-pause-btn";
+        nextBtn.title = "Next Track";
+        const nextIcon = document.createElement("div");
+        nextIcon.className = "play-pause-icon next";
+        nextBtn.appendChild(nextIcon);
+        
+        nextBtn.onclick = async (e) => {
+            e.stopPropagation();
+             await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: (type) => {
+                    if (type === 'spotify') {
+                        const btn = document.querySelector('[data-testid="control-button-skip-forward"]');
+                        if (btn) btn.click();
+                    } else if (type === 'youtube') {
+                        const btn = document.querySelector('.ytp-next-button') || 
+                                    document.querySelector('.next-button');
+                        if (btn) btn.click();
+                    }
+                },
+                args: [serviceType]
+            });
+        };
     }
 
-    // Click anywhere else on the row → focus the tab
+    // Assemble Rows
     mainRow.onclick = () => {
       chrome.tabs.update(tab.id, { active: true });
       chrome.windows.update(tab.windowId, { focused: true });
@@ -592,46 +603,35 @@ async function renderTabs(tabs = []) {
 
     mainRow.appendChild(info);
     
-    // Add progress bar and play/pause button container if available
-    if (progressBar) {
-      mainRow.appendChild(progressBar);
-      
-      // Create control row for play/pause button (below progress bar)
-      const controlRow = document.createElement("div");
-      controlRow.className = "control-row";
-      
-      const mediaControls = document.createElement("div");
-      mediaControls.className = "media-controls";
-      
-      if (prevBtn) mediaControls.appendChild(prevBtn);
-      mediaControls.appendChild(playPauseBtn);
-      if (nextBtn) mediaControls.appendChild(nextBtn);
-      
-      controlRow.appendChild(mediaControls);
-      
-      if (lyricsBtn) {
+    // Construct Grid
+    // [ Info            ]
+    // [ Progress Bar    ]
+    // [ Prev Play Next | Lyrics ]
+
+    if (progressBar) mainRow.appendChild(progressBar);
+    
+    const controlRow = document.createElement("div");
+    controlRow.className = "control-row";
+    
+    const mediaControls = document.createElement("div");
+    mediaControls.className = "media-controls";
+    if (prevBtn) mediaControls.appendChild(prevBtn);
+    mediaControls.appendChild(playPauseBtn);
+    if (nextBtn) mediaControls.appendChild(nextBtn);
+    
+    controlRow.appendChild(mediaControls);
+    
+    if (lyricsBtn) {
         const separator = document.createElement("div");
         separator.className = "control-separator";
         controlRow.appendChild(separator);
         controlRow.appendChild(lyricsBtn);
-      }
-      
-      mainRow.appendChild(controlRow);
-    } else {
-      // For non-Spotify tabs, add play/pause in a control row
-      const controlRow = document.createElement("div");
-      controlRow.className = "control-row";
-      controlRow.appendChild(playPauseBtn);
-      mainRow.appendChild(controlRow);
     }
     
+    mainRow.appendChild(controlRow);
+
     li.appendChild(mainRow);
-    
-    // Add lyrics panel if it exists
-    if (lyricsPanel) {
-      li.appendChild(lyricsPanel);
-    }
-    
+    if (lyricsPanel) li.appendChild(lyricsPanel);
     list.appendChild(li);
   });
 }
