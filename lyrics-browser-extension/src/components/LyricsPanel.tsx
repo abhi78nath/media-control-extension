@@ -59,7 +59,7 @@ export function LyricsPanel({ artist, title, expanded, style }: LyricsPanelProps
             {loading && <div className="lyrics-loading">Loading lyrics...</div>}
 
             {!loading && lyrics && (
-                <div className="lyrics-content" style={{ display: 'block', ...style }}>{lyrics}</div>
+                <div className="lyrics-content" style={{ display: 'block' }}>{lyrics}</div>
             )}
 
             {!loading && error && (
