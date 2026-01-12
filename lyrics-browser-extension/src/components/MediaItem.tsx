@@ -211,7 +211,7 @@ export function MediaItem({ tab }: MediaItemProps) {
                         currentTime={spotifyDetails.currentTime}
                         progress={spotifyDetails.progress}
                         isPlaying={!tab.paused}
-                        style={dominantColor ? { color: textColor, backgroundColor: textColor } : undefined} // Pass color to override defaults
+                        style={dominantColor ? { color: textColor } : undefined} // Pass color to override defaults
                     />
                 )}
 

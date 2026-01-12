@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
-    "name": "Media Playing Detector",
-    "description": "Shows which tabs are playing media",
+    "name": "TabTune",
+    "description": "Media Player and Lyrics Viewer",
     "version": "1.0",
     "permissions": [
       "tabs",

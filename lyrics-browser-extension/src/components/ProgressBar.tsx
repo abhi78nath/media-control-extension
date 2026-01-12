@@ -79,7 +79,7 @@ export function ProgressBar({ duration, currentTime, progress, isPlaying, style 
             <div className="progress-bar-wrapper">
                 <div
                     className="progress-bar-fill"
-                    style={{ width: `${progressPercent}%`, ...style }}
+                    style={{ width: `${progressPercent}%`, backgroundColor: style?.color, ...style }}
                 ></div>
             </div>
             <span className="progress-time-total" style={style}>{duration}</span>
