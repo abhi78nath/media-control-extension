@@ -187,7 +187,7 @@ export function MediaItem({ tab }: MediaItemProps) {
 
     return (
         <li
-            className={`${tab.paused ? "paused" : ""} ${tab.muted ? "muted" : "playing"}`}
+            className="playing"
             style={itemStyle}
             title={tab.url}
         >
@@ -210,11 +210,11 @@ export function MediaItem({ tab }: MediaItemProps) {
                         </small>
                         <div className="title-text" style={textStyle}>{title}</div>
                         <div className="artist-text" style={textStyle}>{artist}</div>
-                        {tab.paused && (
+                        {/* {tab.paused && (
                             <small style={{ color: textColor, opacity: 0.8, fontStyle: 'italic', marginTop: 4 }}>
                                 ⏸ Paused
                             </small>
-                        )}
+                        )} */}
                     </div>
                 </div>
 
