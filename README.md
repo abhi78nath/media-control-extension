@@ -10,7 +10,7 @@ You want the lyrics — *now* — but tab switching kills the vibe.
 - **🌐 Universal Media Detection**: Automatically detects and lists media playing in any browser tab.
 - **📜 One-Click Lyrics**: Fetches and displays lyrics for the currently playing track with a single click.
 - **🕹️ Quick Controls**:
-  - Play/Pause toggle
+  - Play/Pause toggle.
   - Prev/Next switch
   - Mute/Unmute toggle
   - One-click tab focusing
